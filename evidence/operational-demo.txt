@@ -1,0 +1,261 @@
+
+==== 0. Start from a clean slate (no containers, network, or volume) ====
+
+$ docker compose down -v --remove-orphans
+
+==== 1. Build the application image ====
+
+$ docker compose build --no-cache app
+ Image cs454-project1-app:1.0.0 Building 
+#1 [internal] load local bake definitions
+#1 reading from stdin 650B done
+#1 DONE 0.0s
+
+#2 [internal] load build definition from Dockerfile
+#2 transferring dockerfile: 920B done
+#2 DONE 0.0s
+
+#3 [internal] load metadata for docker.io/library/node:22-alpine
+#3 DONE 0.4s
+
+#4 [internal] load .dockerignore
+#4 transferring context: 473B done
+#4 DONE 0.0s
+
+#5 [internal] load build context
+#5 transferring context: 166B done
+#5 DONE 0.0s
+
+#6 [1/5] FROM docker.io/library/node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402
+#6 resolve docker.io/library/node:22-alpine@sha256:0a7108bf6c7bf5de370ffb1a3ed6be93d405b43ff159f681a8d18c0e2bc2e402 done
+#6 DONE 0.0s
+
+#7 [2/5] WORKDIR /app
+#7 CACHED
+
+#8 [3/5] COPY package.json package-lock.json ./
+#8 DONE 0.0s
+
+#9 [4/5] RUN npm ci --omit=dev && npm cache clean --force
+#9 1.458 
+#9 1.458 added 75 packages, and audited 76 packages in 1s
+#9 1.458 
+#9 1.458 27 packages are looking for funding
+#9 1.458   run `npm fund` for details
+#9 1.459 
+#9 1.459 found 0 vulnerabilities
+#9 1.459 npm notice
+#9 1.459 npm notice New major version of npm available! 10.9.9 -> 12.1.0
+#9 1.459 npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.1.0
+#9 1.459 npm notice To update run: npm install -g npm@12.1.0
+#9 1.459 npm notice
+#9 1.595 npm warn using --force Recommended protections disabled.
+#9 DONE 1.7s
+
+#10 [5/5] COPY src/ ./src/
+#10 DONE 0.0s
+
+#11 exporting to image
+#11 exporting layers
+#11 exporting layers 0.3s done
+#11 exporting manifest sha256:ce96d95b476ea59f4407f13e87054302ecc9ee89f21066fbfe1e89a200fc8ade done
+#11 exporting config sha256:4fb028ef53fab2174decf8dcadc700c72f25c91d8f70f4dd56f15d7b88a7e506 done
+#11 exporting attestation manifest sha256:de6cd700e65ec9fb4e019e074af1564424489b4b496bd9974a7b8e73853395b6 done
+#11 exporting manifest list sha256:4be8f391693bf615d353f79f907fd6cb291b45b9d0b77fdb6c3ff9c4760c35f7 done
+#11 naming to docker.io/library/cs454-project1-app:1.0.0 done
+#11 unpacking to docker.io/library/cs454-project1-app:1.0.0
+#11 unpacking to docker.io/library/cs454-project1-app:1.0.0 0.2s done
+#11 DONE 0.5s
+
+#12 resolving provenance for metadata file
+#12 DONE 0.0s
+ Image cs454-project1-app:1.0.0 Built 
+
+$ docker image ls cs454-project1-app
+IMAGE                      ID             DISK USAGE   CONTENT SIZE   EXTRA
+cs454-project1-app:1.0.0   4be8f391693b        255MB         62.8MB        
+
+==== 2. Start the complete system with one Compose command ====
+
+$ docker compose up -d --wait
+ Volume cs454-project1_redis-data Creating 
+ Network cs454-project1_backend Creating 
+ Network cs454-project1_backend Creating 
+ Volume cs454-project1_redis-data Creating 
+ Volume cs454-project1_redis-data Created 
+ Volume cs454-project1_redis-data Created 
+ Network cs454-project1_backend Created 
+ Network cs454-project1_backend Created 
+ Container cs454-project1-redis-1 Creating 
+ Container cs454-project1-redis-1 Created 
+ Container cs454-project1-app-1 Creating 
+ Container cs454-project1-app-1 Created 
+ Container cs454-project1-redis-1 Starting 
+ Container cs454-project1-redis-1 Started 
+ Container cs454-project1-redis-1 Waiting 
+ Container cs454-project1-redis-1 Healthy 
+ Container cs454-project1-app-1 Starting 
+ Container cs454-project1-app-1 Started 
+ Container cs454-project1-app-1 Waiting 
+ Container cs454-project1-redis-1 Waiting 
+ Container cs454-project1-redis-1 Healthy 
+ Container cs454-project1-app-1 Healthy 
+
+$ docker compose ps
+NAME                     IMAGE                      COMMAND                  SERVICE   CREATED          STATUS                    PORTS
+cs454-project1-app-1     cs454-project1-app:1.0.0   "docker-entrypoint.s…"   app       12 seconds ago   Up 5 seconds (healthy)    127.0.0.1:8080->8080/tcp
+cs454-project1-redis-1   redis:7.4-alpine           "docker-entrypoint.s…"   redis     12 seconds ago   Up 11 seconds (healthy)   6379/tcp
+
+====    Inspect: app runs as non-root; only the app publishes a port ====
+
+$ docker compose exec app id
+uid=1000(node) gid=1000(node) groups=1000(node)
+
+$ docker inspect --format {{.Name}} ports={{json .NetworkSettings.Ports}} cs454-project1-app-1 cs454-project1-redis-1
+/cs454-project1-app-1 ports={"8080/tcp":[{"HostIp":"127.0.0.1","HostPort":"8080"}]}
+/cs454-project1-redis-1 ports={"6379/tcp":null}
+
+$ docker network inspect --format {{.Name}}: {{range .Containers}}{{.Name}} {{end}} cs454-project1_backend
+cs454-project1_backend: cs454-project1-redis-1 cs454-project1-app-1 
+
+==== 3. Verify the application health endpoint ====
+
+$ curl -sS -w \nHTTP %{http_code}\n http://localhost:8080/health
+{"status":"ok"}
+HTTP 200
+
+$ docker inspect --format {{.Name}} health={{.State.Health.Status}} cs454-project1-app-1
+/cs454-project1-app-1 health=healthy
+
+==== 4. Perform two successful conversions ====
+
+$ curl -sS -w \nHTTP %{http_code}\n http://localhost:8080/convert?lbs=150
+{"lbs":150,"kg":68.039,"formula":"kg = lbs * 0.45359237"}
+HTTP 200
+
+$ curl -sS -w \nHTTP %{http_code}\n http://localhost:8080/convert?lbs=0.1
+{"lbs":0.1,"kg":0.045,"formula":"kg = lbs * 0.45359237"}
+HTTP 200
+
+====    (an invalid request, which must not be counted) ====
+
+$ curl -sS -w \nHTTP %{http_code}\n http://localhost:8080/convert?lbs=-5
+{"error":"lbs must be a non-negative, finite number."}
+HTTP 422
+
+==== 5. Verify /stats reports the expected count (2) ====
+
+$ curl -sS -w \nHTTP %{http_code}\n http://localhost:8080/stats
+{"conversions":2}
+HTTP 200
+
+==== 6. Inspect application logs ====
+
+$ docker compose logs app
+app-1  | cs454-project1 listening on port 8080
+app-1  | Connected to Redis at redis:6379
+app-1  | 2026-09-25T16:44:47.690Z GET /health 200 3.5ms
+app-1  | 2026-09-25T16:44:48.434Z GET /health 200 1.4ms
+app-1  | 2026-09-25T16:44:48.465Z GET /convert?lbs=150 200 2.9ms
+app-1  | 2026-09-25T16:44:48.473Z GET /convert?lbs=0.1 200 1.1ms
+app-1  | 2026-09-25T16:44:48.481Z GET /convert?lbs=-5 422 0.5ms
+app-1  | 2026-09-25T16:44:48.492Z GET /stats 200 1.1ms
+
+==== 7. Stop and remove the containers, keeping the named volume ====
+
+$ docker compose stop
+ Container cs454-project1-app-1 Stopping 
+ Container cs454-project1-app-1 Stopped 
+ Container cs454-project1-redis-1 Stopping 
+ Container cs454-project1-redis-1 Stopped 
+
+$ docker compose ps -a
+NAME                     IMAGE                      COMMAND                  SERVICE   CREATED          STATUS                              PORTS
+cs454-project1-app-1     cs454-project1-app:1.0.0   "docker-entrypoint.s…"   app       12 seconds ago   Exited (0) Less than a second ago   
+cs454-project1-redis-1   redis:7.4-alpine           "docker-entrypoint.s…"   redis     12 seconds ago   Exited (0) Less than a second ago   
+
+$ docker compose logs app --tail 4
+app-1  | 2026-09-25T16:44:48.492Z GET /stats 200 1.1ms
+app-1  | Received SIGTERM, shutting down...
+app-1  | Server closed.
+app-1  | Redis connection closed.
+
+$ docker compose down
+ Container cs454-project1-app-1 Stopping 
+ Container cs454-project1-app-1 Stopped 
+ Container cs454-project1-app-1 Removing 
+ Container cs454-project1-app-1 Removed 
+ Container cs454-project1-redis-1 Stopping 
+ Container cs454-project1-redis-1 Stopped 
+ Container cs454-project1-redis-1 Removing 
+ Container cs454-project1-redis-1 Removed 
+ Network cs454-project1_backend Removing 
+ Network cs454-project1_backend Removed 
+
+$ docker compose ps -a
+NAME      IMAGE     COMMAND   SERVICE   CREATED   STATUS    PORTS
+
+$ docker volume ls --filter name=cs454-project1
+DRIVER    VOLUME NAME
+local     cs454-project1_redis-data
+
+==== 8. Recreate the system ====
+
+$ docker compose up -d --wait
+ Network cs454-project1_backend Creating 
+ Network cs454-project1_backend Creating 
+ Network cs454-project1_backend Created 
+ Network cs454-project1_backend Created 
+ Container cs454-project1-redis-1 Creating 
+ Container cs454-project1-redis-1 Created 
+ Container cs454-project1-app-1 Creating 
+ Container cs454-project1-app-1 Created 
+ Container cs454-project1-redis-1 Starting 
+ Container cs454-project1-redis-1 Started 
+ Container cs454-project1-redis-1 Waiting 
+ Container cs454-project1-redis-1 Healthy 
+ Container cs454-project1-app-1 Starting 
+ Container cs454-project1-app-1 Started 
+ Container cs454-project1-redis-1 Waiting 
+ Container cs454-project1-app-1 Waiting 
+ Container cs454-project1-redis-1 Healthy 
+ Container cs454-project1-app-1 Healthy 
+
+$ docker compose ps
+NAME                     IMAGE                      COMMAND                  SERVICE   CREATED          STATUS                    PORTS
+cs454-project1-app-1     cs454-project1-app:1.0.0   "docker-entrypoint.s…"   app       11 seconds ago   Up 5 seconds (healthy)    127.0.0.1:8080->8080/tcp
+cs454-project1-redis-1   redis:7.4-alpine           "docker-entrypoint.s…"   redis     11 seconds ago   Up 11 seconds (healthy)   6379/tcp
+
+==== 9. Verify /stats still reports the previous count (2) ====
+
+$ curl -sS -w \nHTTP %{http_code}\n http://localhost:8080/stats
+{"conversions":2}
+HTTP 200
+
+==== 10. Remove all project resources, including the named volume ====
+
+$ docker compose down -v
+ Container cs454-project1-app-1 Stopping 
+ Container cs454-project1-app-1 Stopped 
+ Container cs454-project1-app-1 Removing 
+ Container cs454-project1-app-1 Removed 
+ Container cs454-project1-redis-1 Stopping 
+ Container cs454-project1-redis-1 Stopped 
+ Container cs454-project1-redis-1 Removing 
+ Container cs454-project1-redis-1 Removed 
+ Network cs454-project1_backend Removing 
+ Volume cs454-project1_redis-data Removing 
+ Volume cs454-project1_redis-data Removed 
+ Network cs454-project1_backend Removed 
+
+$ docker image rm cs454-project1-app:1.0.0
+Untagged: cs454-project1-app:1.0.0
+Deleted: sha256:4be8f391693bf615d353f79f907fd6cb291b45b9d0b77fdb6c3ff9c4760c35f7
+
+$ docker volume ls --filter name=cs454-project1
+DRIVER    VOLUME NAME
+
+$ docker network ls --filter name=cs454-project1
+NETWORK ID   NAME      DRIVER    SCOPE
+
+Demo complete.

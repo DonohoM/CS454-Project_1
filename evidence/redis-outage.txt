@@ -1,0 +1,62 @@
+# Failure scenario: Redis becomes unavailable while the app keeps running
+
+$ curl -sS -w \nHTTP %{http_code}\n http://localhost:8080/convert?lbs=10
+{"lbs":10,"kg":4.536,"formula":"kg = lbs * 0.45359237"}
+HTTP 200
+
+$ curl -sS -w \nHTTP %{http_code}\n http://localhost:8080/stats
+{"conversions":1}
+HTTP 200
+
+$ docker compose stop redis
+ Container cs454-project1-redis-1 Stopping 
+ Container cs454-project1-redis-1 Stopped 
+
+$ curl -sS -w \nHTTP %{http_code}\n http://localhost:8080/health
+{"status":"ok"}
+HTTP 200
+
+$ curl -sS -w \nHTTP %{http_code}\n http://localhost:8080/stats
+{"error":"Conversion statistics are temporarily unavailable."}
+HTTP 503
+
+$ curl -sS -w \nHTTP %{http_code}\n http://localhost:8080/convert?lbs=10
+{"error":"Conversion could not be recorded; state store unavailable."}
+HTTP 503
+
+$ docker inspect --format {{.Name}} health={{.State.Health.Status}} restarts={{.RestartCount}} cs454-project1-app-1
+/cs454-project1-app-1 health=healthy restarts=0
+
+$ docker compose start redis
+ Container cs454-project1-redis-1 Starting 
+ Container cs454-project1-redis-1 Started 
+
+$ curl -sS -w \nHTTP %{http_code}\n http://localhost:8080/stats
+{"conversions":1}
+HTTP 200
+
+$ curl -sS -w \nHTTP %{http_code}\n http://localhost:8080/convert?lbs=10
+{"lbs":10,"kg":4.536,"formula":"kg = lbs * 0.45359237"}
+HTTP 200
+
+$ curl -sS -w \nHTTP %{http_code}\n http://localhost:8080/stats
+{"conversions":2}
+HTTP 200
+
+$ docker compose logs app --tail 16
+app-1  | Reconnecting to Redis at redis:6379...
+app-1  | Redis error: connect ECONNREFUSED 172.19.0.2:6379
+app-1  | Reconnecting to Redis at redis:6379...
+app-1  | Redis error: connect ECONNREFUSED 172.19.0.2:6379
+app-1  | 2026-09-25T16:45:24.948Z GET /health 200 0.6ms
+app-1  | Failed to read conversion count: The client is offline
+app-1  | 2026-09-25T16:45:24.958Z GET /stats 503 0.6ms
+app-1  | Failed to record conversion: The client is offline
+app-1  | 2026-09-25T16:45:24.973Z GET /convert?lbs=10 503 1.4ms
+app-1  | Reconnecting to Redis at redis:6379...
+app-1  | Redis error: getaddrinfo ENOTFOUND redis
+app-1  | Reconnecting to Redis at redis:6379...
+app-1  | Connected to Redis at redis:6379
+app-1  | 2026-09-25T16:45:29.175Z GET /stats 200 4.9ms
+app-1  | 2026-09-25T16:45:29.189Z GET /convert?lbs=10 200 1.9ms
+app-1  | 2026-09-25T16:45:29.206Z GET /stats 200 3.2ms

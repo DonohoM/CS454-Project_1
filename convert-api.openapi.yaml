@@ -1,0 +1,157 @@
+openapi: 3.1.0
+
+info:
+  title: Pounds to Kilograms Conversion API
+  summary: REST API for CS 454/554 Project 1
+  description: |
+    This API converts pounds to kilograms, records the number of successful
+    conversions in Redis, exposes that count through a statistics endpoint,
+    and provides a simple application health endpoint.
+  version: 1.1.0
+
+servers:
+  - url: http://localhost:8080
+    description: Example local development server
+
+tags:
+  - name: Conversion
+  - name: Operations
+
+paths:
+  /convert:
+    get:
+      tags: [Conversion]
+      summary: Convert pounds to kilograms
+      operationId: convertPoundsToKilograms
+      parameters:
+        - name: lbs
+          in: query
+          required: true
+          description: Non-negative finite weight in pounds.
+          schema:
+            type: number
+          examples:
+            typical:
+              value: 150
+            fractional:
+              value: 0.1
+      responses:
+        "200":
+          description: Conversion completed successfully. A successful request increments the Redis-backed conversion counter.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ConversionResponse"
+              examples:
+                typical:
+                  value:
+                    lbs: 150
+                    kg: 68.039
+                    formula: "kg = lbs * 0.45359237"
+                zero:
+                  value:
+                    lbs: 0
+                    kg: 0
+                    formula: "kg = lbs * 0.45359237"
+        "400":
+          description: The lbs query parameter is missing or is not a number.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: Query parameter lbs is required and must be a number.
+        "422":
+          description: The supplied value is numeric but negative or non-finite.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: lbs must be a non-negative, finite number.
+
+  /stats:
+    get:
+      tags: [Operations]
+      summary: Return successful conversion count
+      operationId: getConversionStats
+      description: Returns the persistent count stored in Redis. Invalid conversion requests must not increment the count.
+      responses:
+        "200":
+          description: Current conversion statistics.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatsResponse"
+              example:
+                conversions: 17
+        "503":
+          description: Optional response when the application cannot read the Redis-backed state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /health:
+    get:
+      tags: [Operations]
+      summary: Application liveness check
+      operationId: getHealth
+      description: Simple application-level health endpoint used by the container health check.
+      responses:
+        "200":
+          description: Application is running and responding.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+              example:
+                status: ok
+
+components:
+  schemas:
+    ConversionResponse:
+      type: object
+      additionalProperties: false
+      required: [lbs, kg, formula]
+      properties:
+        lbs:
+          type: number
+          description: Original weight in pounds.
+          examples: [150]
+        kg:
+          type: number
+          description: Converted weight in kilograms, rounded to three decimal places.
+          examples: [68.039]
+        formula:
+          type: string
+          const: "kg = lbs * 0.45359237"
+
+    StatsResponse:
+      type: object
+      additionalProperties: false
+      required: [conversions]
+      properties:
+        conversions:
+          type: integer
+          minimum: 0
+          description: Number of successful conversions recorded in Redis.
+          examples: [17]
+
+    HealthResponse:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          const: ok
+
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      required: [error]
+      properties:
+        error:
+          type: string
+          description: Human-readable error message.

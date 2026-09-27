@@ -1,0 +1,53 @@
+name: cs454-project1
+
+services:
+  app:
+    build: .
+    image: cs454-project1-app:1.0.0
+    # All runtime configuration lives here, not in the image.
+    environment:
+      PORT: "8080"
+      SERVICE_NAME: cs454-project1
+      REDIS_HOST: redis          # the Compose service name, resolved by Compose DNS
+      REDIS_PORT: "6379"
+    # The only published port in the project, bound to the loopback interface
+    # so it is reachable from this machine but not from the wider network.
+    ports:
+      - "127.0.0.1:${APP_HOST_PORT:-8080}:8080"
+    networks:
+      - backend
+    depends_on:
+      redis:
+        condition: service_healthy
+    # Application-local liveness check against GET /health.
+    healthcheck:
+      test: ["CMD", "node", "src/healthcheck.js"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+    # Restart after a crash or a daemon/host restart, but not after an explicit stop.
+    restart: unless-stopped
+
+  redis:
+    image: redis:7.4-alpine
+    # Append-only file: every INCR is logged to /data, not just periodic snapshots.
+    command: ["redis-server", "--appendonly", "yes"]
+    # No `ports:` -- Redis is reachable only by services on the backend network.
+    volumes:
+      - redis-data:/data
+    networks:
+      - backend
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 2s
+      retries: 10
+    restart: unless-stopped
+
+networks:
+  backend:
+    driver: bridge
+
+volumes:
+  redis-data:

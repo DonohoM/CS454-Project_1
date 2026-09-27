@@ -1,0 +1,17 @@
+$ ./test/smoke.sh
+Smoke testing http://localhost:8080
+ok   /health                  200  {"status":"ok"}
+ok   /                        200  {"service":"cs454-project1","message":"CS 454/554 Project 1 starter is running."}
+info /stats                   conversions=0 at start
+ok   /convert?lbs=0           200  {"lbs":0,"kg":0,"formula":"kg = lbs * 0.45359237"}
+ok   /convert?lbs=150         200  {"lbs":150,"kg":68.039,"formula":"kg = lbs * 0.45359237"}
+ok   /convert?lbs=0.1         200  {"lbs":0.1,"kg":0.045,"formula":"kg = lbs * 0.45359237"}
+ok   /stats (after 3 valid)   200  {"conversions":3}
+ok   /convert                 400  {"error":"Query parameter lbs is required and must be a number."}
+ok   /convert?lbs=abc         400  {"error":"Query parameter lbs is required and must be a number."}
+ok   /convert?lbs=            400  {"error":"Query parameter lbs is required and must be a number."}
+ok   /convert?lbs=-5          422  {"error":"lbs must be a non-negative, finite number."}
+ok   /convert?lbs=Infinity    422  {"error":"lbs must be a non-negative, finite number."}
+ok   /stats (after invalid)   200  {"conversions":3}
+ok   /no-such-path            404  {"error":"Not Found"}
+All checks passed.

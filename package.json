@@ -1,0 +1,19 @@
+{
+  "name": "cs454-project1-starter",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Starter scaffold for CS 454/554 Project 1 - Portable Containerized REST Service",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node src/server.js",
+    "smoke": "./test/smoke.sh",
+    "demo": "./scripts/demo.sh"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "redis": "^5.12.1"
+  }
+}
